@@ -315,16 +315,32 @@ const MATCH_TIMES = {
 };
 function kickoffUTC(id){
   const s=MATCH_TIMES[id];if(!s)return Infinity;
-  const[date,time]=s.split('T');const[y,mo,d]=date.split('-').map(Number);const[h,mi]=time.split(':').map(Number);
+  // MATCH_TIMES em BRT (UTC-3). BRT+3h = UTC.
+  const[date,time]=s.split('T');
+  const[y,mo,d]=date.split('-').map(Number);
+  const[h,mi]=time.split(':').map(Number);
   return Date.UTC(y,mo-1,d,h+3,mi);
 }
-function isLocked(id){return Date.now()>=kickoffUTC(id)-5*60*1000}
+function nowBRT(){
+  // Pega o timestamp atual e converte para BRT independente do fuso do dispositivo
+  return new Date(new Date().toLocaleString("en-US",{timeZone:"America/Sao_Paulo"}));
+}
+function isLocked(id){
+  // Compara em UTC para evitar problemas de fuso do dispositivo
+  return Date.now() >= kickoffUTC(id) - 5*60*1000;
+}
 function lockLabel(id){
   const diff=kickoffUTC(id)-Date.now();
   if(diff<=0)return'🔒 Jogo iniciado';
   const mins=Math.ceil(diff/60000);
   return mins<=5?`🔒 Travado (${mins}min)`:'🔒 Travado';
 }
+// Debug: mostra horário BRT e UTC no console
+console.log("Agora BRT:", new Date().toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"}));
+console.log("Agora UTC:", new Date().toUTCString());
+console.log("Jogo 1 kickoff UTC:", new Date(kickoffUTC(1)).toUTCString());
+console.log("Jogo 1 kickoff BRT:", new Date(kickoffUTC(1)).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"}));
+console.log("Jogo 1 locked?", isLocked(1));
 
 // ══════════ STATE ══════════
 let session={sala:null,jogador:null,isAdmin:false};
@@ -362,6 +378,23 @@ function sair(){
   realtimeSubs=[];
   session={sala:null,jogador:null,isAdmin:false};
   placares={};palpitesCache={};jogadoresCache=[];
+  clearInterval(window._lockInterval);
+
+  // Remove aba admin do DOM (para não aparecer para próximo usuário)
+  const adminTab=document.querySelector('.tab.admin-tab');
+  if(adminTab)adminTab.remove();
+  // Limpa conteúdo das abas
+  ["palpites","ranking","admin"].forEach(id=>{
+    const el=document.getElementById("tab-"+id);
+    if(el){el.innerHTML="";el.style.display= id==="palpites"?"block":"none";}
+  });
+  // Volta tab ativa para palpites
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab==="palpites"));
+  // Limpa inputs de entrada
+  ["inp-codigo","inp-nome","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome"].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value="";
+  });
+  mostrarEntrar();
   document.getElementById("screen-app").style.display="none";
   document.getElementById("screen-entrada").style.display="flex";
 }
@@ -455,8 +488,8 @@ async function iniciarApp(){
   // Renderiza
   renderPalpites();
 
-  // Re-renderiza a cada 30s para travas
-  setInterval(()=>renderPalpites(),30000);
+  // Re-renderiza a cada 30s para travas automáticas
+  window._lockInterval=setInterval(()=>renderPalpites(),30000);
 }
 
 // ══════════ CARREGAR DADOS ══════════
@@ -569,7 +602,8 @@ function renderPalpites(){
   </div>`;
 
   // Indicador realtime
-  html+=`<div class="live-bar"><span class="live-dot"></span>Placar em tempo real</div>`;
+  const temJogoAoVivo=MATCHES.some(m=>isLocked(m.id));
+  html+=temJogoAoVivo ? `<div class="live-bar"><span class="live-dot"></span>Placar em tempo real · atualização automática</div>` : ""
 
   dias.forEach(dia=>{
     const matches=MATCHES.filter(m=>m.dia===dia);

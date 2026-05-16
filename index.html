@@ -208,9 +208,10 @@ footer span{color:var(--yellow)}
   <!-- ENTRAR NA SALA -->
   <div class="card-entrada" id="card-entrar">
     <h2>Entrar no Bolão</h2>
-    <p>Digite o código da sala e seu nome para começar a palpitar.</p>
+    <p>Digite o código da sala, seu nome e uma senha. Se for seu primeiro acesso, a senha será criada. Se já entrou antes, use a mesma senha.</p>
     <div class="field"><label>Código da sala</label><input id="inp-codigo" placeholder="Ex: HEXA26" maxlength="10" style="text-transform:uppercase"></div>
     <div class="field"><label>Seu nome</label><input id="inp-nome" placeholder="Como você quer aparecer" maxlength="20"></div>
+    <div class="field"><label>Sua senha</label><input id="inp-senha" type="password" placeholder="Escolha uma senha"></div>
     <button class="btn-full" onclick="entrarNaSala()">Entrar ★</button>
     <div class="divider">ou</div>
     <button class="btn-ghost-sm" onclick="mostrarCriarSala()">Criar nova sala (Admin)</button>
@@ -391,7 +392,7 @@ function sair(){
   // Volta tab ativa para palpites
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab==="palpites"));
   // Limpa inputs de entrada
-  ["inp-codigo","inp-nome","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome"].forEach(id=>{
+  ["inp-codigo","inp-nome","inp-senha","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome"].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value="";
   });
   mostrarEntrar();
@@ -432,7 +433,9 @@ async function criarSala(){
 async function entrarNaSala(){
   const codigo=document.getElementById("inp-codigo").value.trim().toUpperCase();
   const nome=document.getElementById("inp-nome").value.trim();
-  if(!codigo||!nome){toast("Preencha código e nome",true);return}
+  const senha=document.getElementById("inp-senha").value.trim();
+  if(!codigo||!nome||!senha){toast("Preencha todos os campos",true);return}
+  if(senha.length<3){toast("Senha muito curta — mínimo 3 caracteres",true);return}
 
   const btn=document.querySelector("#card-entrar .btn-full");
   btn.disabled=true;btn.textContent="Entrando...";
@@ -440,22 +443,40 @@ async function entrarNaSala(){
   try{
     // Busca sala
     const{data:sala,error:eSala}=await sb.from("salas").select("*").eq("codigo",codigo).single();
-    if(eSala||!sala){toast("Sala não encontrada",true);btn.disabled=false;btn.textContent="Entrar ★";return}
+    if(eSala||!sala){toast("Sala não encontrada. Verifique o código.",true);btn.disabled=false;btn.textContent="Entrar ★";return}
 
-    // Cria jogador (ou busca existente pelo nome na sala)
-    let jogador;
+    // Verifica se o nome já existe na sala
     const{data:existing}=await sb.from("jogadores").select("*").eq("sala_codigo",codigo).eq("nome",nome).maybeSingle();
+
+    let jogador;
     if(existing){
+      // Nome já existe — só pode ser alguém tentando entrar na própria conta
+      if(existing.senha!==senha){
+        toast("Senha incorreta.",true);
+        btn.disabled=false;btn.textContent="Entrar ★";return;
+      }
+      // Senha correta — bem-vindo de volta
       jogador=existing;
+      toast("Bem-vindo de volta, "+nome+"! ★");
     } else {
-      const{data:jData,error:eJ}=await sb.from("jogadores").insert({sala_codigo:codigo,nome}).select().single();
-      if(eJ){toast("Erro ao entrar: "+eJ.message,true);btn.disabled=false;btn.textContent="Entrar ★";return}
+      // Nome livre — cria a conta
+      const{data:jData,error:eJ}=await sb.from("jogadores").insert({sala_codigo:codigo,nome,senha}).select().single();
+      if(eJ){
+        // Race condition: outro usuário pegou o mesmo nome no mesmo instante
+        if(eJ.code==="23505"){
+          toast("Nome de usuário já existente. Escolha outro nome.",true);
+        } else {
+          toast("Erro ao criar conta: "+eJ.message,true);
+        }
+        btn.disabled=false;btn.textContent="Entrar ★";return;
+      }
       jogador=jData;
+      toast("Conta criada! Bem-vindo, "+nome+"! ★");
     }
 
     session={sala,jogador,isAdmin:false};
     await iniciarApp();
-  }catch(e){toast("Erro inesperado",true);btn.disabled=false;btn.textContent="Entrar ★"}
+  }catch(e){toast("Erro inesperado: "+e.message,true);btn.disabled=false;btn.textContent="Entrar ★"}
 }
 
 // ══════════ INICIAR APP ══════════
@@ -779,6 +800,7 @@ async function adminGol(matchId,side,delta){
 // ══════════ INIT ══════════
 document.getElementById("inp-codigo").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
 document.getElementById("inp-nome").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
+document.getElementById("inp-senha").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
 document.getElementById("inp-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
 document.getElementById("inp-sala-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
 </script>

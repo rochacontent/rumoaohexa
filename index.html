@@ -214,7 +214,33 @@ footer span{color:var(--yellow)}
     <div class="field"><label>Sua senha</label><input id="inp-senha" type="password" placeholder="Escolha uma senha"></div>
     <button class="btn-full" onclick="entrarNaSala()">Entrar ★</button>
     <div class="divider">ou</div>
-    <button class="btn-ghost-sm" onclick="mostrarCriarSala()">Criar nova sala (Admin)</button>
+    <button class="btn-ghost-sm" onclick="mostrarAdminLogin()">⚙ Entrar como Admin</button>
+  </div>
+
+  <!-- LOGIN ADMIN -->
+  <div class="card-entrada" id="card-admin-login" style="display:none">
+    <!-- Estado: carregando -->
+    <div id="adm-loading" style="text-align:center;padding:20px 0">
+      <div class="spinner" style="margin:0 auto 12px"></div>
+      <span style="color:var(--muted);font-family:var(--mono);font-size:12px">Verificando...</span>
+    </div>
+    <!-- Estado: primeiro acesso (define senha) -->
+    <div id="adm-primeiro" style="display:none">
+      <h2>⚙ Criar Senha Admin</h2>
+      <p>Primeiro acesso! Defina sua senha master. Ela será salva e usada em todos os acessos futuros.</p>
+      <div class="field"><label>Nova senha master</label><input id="inp-adm-senha-nova" type="password" placeholder="Mínimo 6 caracteres"></div>
+      <div class="field"><label>Confirme a senha</label><input id="inp-adm-senha-conf" type="password" placeholder="Repita a senha"></div>
+      <button class="btn-full" onclick="criarSenhaMaster()">Criar Senha ⚙</button>
+      <button class="btn-ghost-sm" onclick="mostrarEntrar()" style="margin-top:8px">← Voltar</button>
+    </div>
+    <!-- Estado: acesso normal (valida senha) -->
+    <div id="adm-login" style="display:none">
+      <h2>⚙ Acesso Admin</h2>
+      <p>Área restrita. Digite sua senha master.</p>
+      <div class="field"><label>Senha master</label><input id="inp-adm-senha" type="password" placeholder="Sua senha master"></div>
+      <button class="btn-full" onclick="entrarComoAdmin()">Entrar ⚙</button>
+      <button class="btn-ghost-sm" onclick="mostrarEntrar()" style="margin-top:8px">← Voltar</button>
+    </div>
   </div>
 
   <!-- CRIAR SALA (admin) -->
@@ -251,6 +277,7 @@ footer span{color:var(--yellow)}
     <div id="tab-palpites"></div>
     <div id="tab-ranking" style="display:none"></div>
     <div id="tab-admin" style="display:none"></div>
+    <div id="tab-criar" style="display:none"></div>
 
     <footer>feito com <span>★</span> · rumo ao hexa · brasileirão 2026</footer>
   </div>
@@ -360,18 +387,32 @@ function toast(msg,erro){
 }
 
 // ══════════ NAVEGAÇÃO ══════════
-function mostrarCriarSala(){document.getElementById("card-entrar").style.display="none";document.getElementById("card-criar").style.display="block"}
-function mostrarEntrar(){document.getElementById("card-criar").style.display="none";document.getElementById("card-entrar").style.display="block"}
+function mostrarCriarSala(){
+  document.getElementById("card-entrar").style.display="none";
+  document.getElementById("card-admin-login").style.display="none";
+  document.getElementById("card-criar").style.display="block";
+}
+function mostrarAdminLogin(){
+  document.getElementById("card-entrar").style.display="none";
+  document.getElementById("card-criar").style.display="none";
+  document.getElementById("card-admin-login").style.display="block";
+}
+function mostrarEntrar(){
+  document.getElementById("card-criar").style.display="none";
+  document.getElementById("card-admin-login").style.display="none";
+  document.getElementById("card-entrar").style.display="block";
+}
 
 function switchTab(tab){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===tab));
-  ["palpites","ranking","admin"].forEach(id=>{
+  ["palpites","ranking","admin","criar"].forEach(id=>{
     const el=document.getElementById("tab-"+id);
     if(el)el.style.display=(id===tab?"block":"none");
   });
   if(tab==="palpites")renderPalpites();
   else if(tab==="ranking")renderRanking();
-  else if(tab==="admin")renderAdmin();
+  else if(tab==="admin")renderAdminGlobal();
+  else if(tab==="criar")renderCriarSala();
 }
 
 function sair(){
@@ -390,10 +431,13 @@ function sair(){
     const el=document.getElementById("tab-"+id);
     if(el){el.innerHTML="";el.style.display= id==="palpites"?"block":"none";}
   });
-  // Volta tab ativa para palpites
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab==="palpites"));
+  // Restaura tabs originais e volta para palpites
+  document.getElementById("tabs-bar").innerHTML=`
+    <button class="tab active" data-tab="palpites" onclick="switchTab('palpites')">★ Palpites</button>
+    <button class="tab" data-tab="ranking" onclick="switchTab('ranking')">🏆 Ranking</button>
+  `;
   // Limpa inputs de entrada
-  ["inp-codigo","inp-nome","inp-senha","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome","inp-admin-senha-pessoal"].forEach(id=>{
+  ["inp-codigo","inp-nome","inp-senha","inp-adm-senha","inp-adm-senha-nova","inp-adm-senha-conf","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome","inp-admin-senha-pessoal"].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value="";
   });
   mostrarEntrar();
@@ -480,6 +524,93 @@ async function entrarNaSala(){
     session={sala,jogador,isAdmin:false};
     await iniciarApp();
   }catch(e){toast("Erro inesperado: "+e.message,true);btn.disabled=false;btn.textContent="Entrar ★"}
+}
+
+// ══════════ LOGIN ADMIN ══════════
+
+// Mostra o card admin e verifica se já existe senha no banco
+async function mostrarAdminLogin(){
+  document.getElementById("card-entrar").style.display="none";
+  document.getElementById("card-criar").style.display="none";
+  document.getElementById("card-admin-login").style.display="block";
+
+  // Mostra loading enquanto verifica
+  document.getElementById("adm-loading").style.display="block";
+  document.getElementById("adm-primeiro").style.display="none";
+  document.getElementById("adm-login").style.display="none";
+
+  try{
+    const{data}=await sb.from("config").select("valor").eq("chave","senha_master").maybeSingle();
+    document.getElementById("adm-loading").style.display="none";
+    if(data){
+      // Já tem senha — mostra login normal
+      document.getElementById("adm-login").style.display="block";
+    } else {
+      // Primeiro acesso — mostra criação de senha
+      document.getElementById("adm-primeiro").style.display="block";
+    }
+  }catch(e){
+    document.getElementById("adm-loading").style.display="none";
+    document.getElementById("adm-login").style.display="block";
+    toast("Erro ao verificar configuração",true);
+  }
+}
+
+// Cria a senha master no primeiro acesso
+async function criarSenhaMaster(){
+  const nova=document.getElementById("inp-adm-senha-nova").value.trim();
+  const conf=document.getElementById("inp-adm-senha-conf").value.trim();
+  if(!nova||!conf){toast("Preencha os dois campos",true);return}
+  if(nova.length<6){toast("Senha deve ter no mínimo 6 caracteres",true);return}
+  if(nova!==conf){toast("As senhas não coincidem",true);return}
+
+  const btn=document.querySelector("#adm-primeiro .btn-full");
+  btn.disabled=true;btn.textContent="Salvando...";
+
+  const{error}=await sb.from("config").insert({chave:"senha_master",valor:nova});
+  if(error){toast("Erro ao salvar senha: "+error.message,true);btn.disabled=false;btn.textContent="Criar Senha ⚙";return}
+
+  toast("Senha criada com sucesso!");
+  // Entra direto no painel
+  await abrirPainelAdmin();
+}
+
+// Valida senha e entra no painel admin
+async function entrarComoAdmin(){
+  const senha=document.getElementById("inp-adm-senha").value.trim();
+  if(!senha){toast("Digite a senha",true);return}
+
+  const btn=document.querySelector("#adm-login .btn-full");
+  btn.disabled=true;btn.textContent="Verificando...";
+
+  const{data}=await sb.from("config").select("valor").eq("chave","senha_master").maybeSingle();
+  if(!data||data.valor!==senha){
+    toast("Senha incorreta",true);
+    btn.disabled=false;btn.textContent="Entrar ⚙";return;
+  }
+
+  await abrirPainelAdmin();
+}
+
+// Abre o painel admin após autenticação
+async function abrirPainelAdmin(){
+  session={sala:null,jogador:{id:"admin",nome:"Admin"},isAdmin:true};
+  document.getElementById("screen-entrada").style.display="none";
+  document.getElementById("screen-app").style.display="block";
+  document.getElementById("hero-sala-badge").textContent="ADMIN GLOBAL";
+  document.getElementById("hero-nome").textContent="Admin";
+
+  // Tabs só com admin + criar sala
+  document.getElementById("tabs-bar").innerHTML=`
+    <button class="tab active admin-tab" data-tab="admin" onclick="switchTab('admin')">⚙ Gerenciar Salas</button>
+    <button class="tab admin-tab" data-tab="criar" onclick="switchTab('criar')">+ Nova Sala</button>
+  `;
+  document.getElementById("tab-palpites").style.display="none";
+  document.getElementById("tab-ranking").style.display="none";
+  document.getElementById("tab-admin").style.display="block";
+
+  await renderAdminGlobal();
+  toast("Bem-vindo, Admin! ⚙");
 }
 
 // ══════════ INICIAR APP ══════════
@@ -740,6 +871,161 @@ async function renderRanking(){
   wrap.innerHTML=html;
 }
 
+// ══════════ CRIAR SALA (dentro do painel admin) ══════════
+function renderCriarSala(){
+  const wrap=document.getElementById("tab-criar");
+  if(!wrap)return;
+  wrap.innerHTML=`
+    <div style="max-width:480px;margin:0 auto">
+      <div class="admin-header" style="margin-bottom:24px">
+        <div><h2>+ Nova Sala</h2><p>Crie um novo bolão e compartilhe o código com os participantes.</p></div>
+      </div>
+      <div class="field"><label>Nome do bolão</label><input id="nc-nome" placeholder="Ex: Bolão da Firma" maxlength="30"></div>
+      <div class="field"><label>Código da sala</label><input id="nc-codigo" placeholder="Ex: HEXA26" maxlength="10" style="text-transform:uppercase"></div>
+      <button class="btn-full" onclick="criarSalaAdmin()" style="margin-top:8px">Criar Sala ★</button>
+    </div>
+  `;
+  document.getElementById("nc-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
+}
+
+async function criarSalaAdmin(){
+  const nome=document.getElementById("nc-nome").value.trim();
+  const codigo=document.getElementById("nc-codigo").value.trim().toUpperCase();
+  if(!nome||!codigo){toast("Preencha todos os campos",true);return}
+
+  const btn=document.querySelector("#tab-criar .btn-full");
+  btn.disabled=true;btn.textContent="Criando...";
+
+  // senha_admin não usada mais (admin global gerencia tudo), coloca string vazia
+  const{error}=await sb.from("salas").insert({codigo,nome,senha_admin:""});
+  if(error){
+    if(error.code==="23505")toast("Código já existe! Tente outro.",true);
+    else toast("Erro ao criar sala: "+error.message,true);
+    btn.disabled=false;btn.textContent="Criar Sala ★";return;
+  }
+
+  toast("Sala '"+nome+"' criada! Código: "+codigo+" ★");
+  btn.disabled=false;btn.textContent="Criar Sala ★";
+  document.getElementById("nc-nome").value="";
+  document.getElementById("nc-codigo").value="";
+
+  // Volta para o painel de gerenciamento
+  setTimeout(()=>switchTab("admin"),1500);
+}
+
+// ══════════ ADMIN GLOBAL — TODAS AS SALAS ══════════
+async function renderAdminGlobal(){
+  const wrap=document.getElementById("tab-admin");
+  if(!wrap)return;
+
+  wrap.innerHTML=`<div class="loading"><div class="spinner"></div><span>Carregando salas...</span></div>`;
+
+  // Busca todas as salas
+  const{data:salas}=await sb.from("salas").select("*").order("created_at",{ascending:false});
+  if(!salas||!salas.length){
+    wrap.innerHTML=`<div class="empty"><div class="ico">⚙</div><h3>Nenhuma sala criada</h3><p>Crie uma sala pelo botão "Criar nova sala".</p></div>`;
+    return;
+  }
+
+  // Busca todos os placares de todas as salas
+  const{data:todosPlacares}=await sb.from("placares").select("*");
+  const placaresPorSala={};
+  (todosPlacares||[]).forEach(p=>{
+    if(!placaresPorSala[p.sala_codigo])placaresPorSala[p.sala_codigo]={};
+    placaresPorSala[p.sala_codigo][p.match_id]={gol_a:p.gol_a,gol_b:p.gol_b};
+  });
+
+  // Conta jogadores por sala
+  const{data:todosJogadores}=await sb.from("jogadores").select("sala_codigo");
+  const jogadoresPorSala={};
+  (todosJogadores||[]).forEach(j=>{
+    jogadoresPorSala[j.sala_codigo]=(jogadoresPorSala[j.sala_codigo]||0)+1;
+  });
+
+  let html=`<div class="admin-header">
+    <div><h2>⚙ Painel Admin Global</h2><p>Gerencie os placares de todas as salas em tempo real.</p></div>
+    <div><div class="admin-counter">${salas.length}<small>salas ativas</small></div></div>
+  </div>`;
+
+  salas.forEach(sala=>{
+    const placarSala=placaresPorSala[sala.codigo]||{};
+    const feitos=Object.keys(placarSala).length;
+    const njog=jogadoresPorSala[sala.codigo]||0;
+
+    html+=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;margin-bottom:20px;overflow:hidden">
+      <div style="background:rgba(255,223,0,.06);padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-family:var(--display);font-size:20px;letter-spacing:.06em;text-transform:uppercase;color:var(--yellow)">${esc(sala.nome)}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.1em">CÓDIGO: ${sala.codigo} · ${njog} JOGADOR${njog!==1?'ES':''} · ${feitos}/10 PLACARES</div>
+        </div>
+        <div style="font-family:var(--display);font-weight:700;font-size:28px;color:var(--yellow)">${feitos}/10</div>
+      </div>`;
+
+    const dias=[...new Set(MATCHES.map(m=>m.dia))];
+    dias.forEach(dia=>{
+      const matches=MATCHES.filter(m=>m.dia===dia);
+      html+=`<div style="padding:0 22px"><div class="dia-header"><h2>${dia}</h2></div></div>`;
+      matches.forEach(m=>{
+        const p=placarSala[m.id];
+        const ga=p?.gol_a??0;const gb=p?.gol_b??0;
+        html+=`<div class="admin-jogo" style="padding:12px 22px">
+          <div class="time">${escudo(m.a,"lg")}<span class="nome" style="font-size:15px">${esc(m.a)}</span></div>
+          <div class="admin-placar">
+            <button class="btn-gol minus" onclick="adminGolGlobal('${sala.codigo}',${m.id},'a',-1,this)">−</button>
+            <span class="score" id="g-${sala.codigo}-a-${m.id}">${ga}</span>
+            <button class="btn-gol plus" onclick="adminGolGlobal('${sala.codigo}',${m.id},'a',1,this)">+</button>
+            <span class="vs-sep">×</span>
+            <button class="btn-gol minus" onclick="adminGolGlobal('${sala.codigo}',${m.id},'b',-1,this)">−</button>
+            <span class="score" id="g-${sala.codigo}-b-${m.id}">${gb}</span>
+            <button class="btn-gol plus" onclick="adminGolGlobal('${sala.codigo}',${m.id},'b',1,this)">+</button>
+          </div>
+          <div class="time dir">${escudo(m.b,"lg")}<span class="nome" style="font-size:15px">${esc(m.b)}</span></div>
+        </div>`;
+      });
+    });
+    html+=`</div>`;
+  });
+
+  wrap.innerHTML=html;
+
+  // Subscribe realtime para todos os placares
+  const ch=sb.channel("admin-global-placares")
+    .on("postgres_changes",{event:"*",schema:"public",table:"placares"},
+      payload=>{
+        const p=payload.new;
+        if(p){
+          const elA=document.getElementById(`g-${p.sala_codigo}-a-${p.match_id}`);
+          const elB=document.getElementById(`g-${p.sala_codigo}-b-${p.match_id}`);
+          if(elA)elA.textContent=p.gol_a;
+          if(elB)elB.textContent=p.gol_b;
+        }
+      })
+    .subscribe();
+  realtimeSubs.push(ch);
+}
+
+async function adminGolGlobal(salaCode, matchId, side, delta, btn){
+  // Busca placar atual do banco
+  const{data:existing}=await sb.from("placares").select("*")
+    .eq("sala_codigo",salaCode).eq("match_id",matchId).maybeSingle();
+  const atual=existing||{gol_a:0,gol_b:0};
+  const novo={...atual};
+  const key=side==="a"?"gol_a":"gol_b";
+  novo[key]=Math.max(0,(novo[key]??0)+delta);
+
+  // Atualiza otimisticamente na tela
+  const elA=document.getElementById(`g-${salaCode}-a-${matchId}`);
+  const elB=document.getElementById(`g-${salaCode}-b-${matchId}`);
+  if(elA)elA.textContent=novo.gol_a;
+  if(elB)elB.textContent=novo.gol_b;
+
+  const{error}=await sb.from("placares").upsert({
+    sala_codigo:salaCode,match_id:matchId,
+    gol_a:novo.gol_a,gol_b:novo.gol_b,updated_at:new Date().toISOString()
+  },{onConflict:"sala_codigo,match_id"});
+  if(error)toast("Erro ao salvar placar",true);
+}
+
 // ══════════ ADMIN — RENDER ══════════
 function renderAdmin(){
   const wrap=document.getElementById("tab-admin");
@@ -804,6 +1090,7 @@ async function adminGol(matchId,side,delta){
 document.getElementById("inp-codigo").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
 document.getElementById("inp-nome").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
 document.getElementById("inp-senha").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
+document.getElementById("inp-adm-senha").addEventListener("keydown",e=>{if(e.key==="Enter")entrarComoAdmin()});
 document.getElementById("inp-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
 document.getElementById("inp-sala-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
 </script>

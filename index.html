@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rumo ao Hexa — Bolão Brasileirão R16</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;-webkit-font-smoothing:antialiased}
+:root{
+  --bg:#0B3D2C;--bg2:#082E21;--surface:rgba(255,255,255,.04);
+  --border:rgba(255,223,0,.18);--border2:rgba(255,223,0,.08);
+  --yellow:#FFDF00;--yellow2:#FFC400;
+  --green:#009C3B;--cream:#FFF8DC;--muted:rgba(255,248,220,.42);
+  --red:#ff6b6b;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Manrope',sans-serif;
+  --display:'Oswald',sans-serif;
+}
+body{font-family:var(--sans);color:var(--cream);background:var(--bg2);
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.012) 2px,rgba(255,255,255,.012) 3px),
+    radial-gradient(ellipse 1400px 600px at 50% -60px,rgba(255,223,0,.09),transparent),
+    radial-gradient(ellipse 900px 500px at 0% 60%,rgba(0,156,59,.12),transparent);
+  background-attachment:fixed;
+}
+
+/* ── ESCUDOS ── */
+.escudo{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08)}
+.escudo img{display:block;width:100%;height:100%;object-fit:cover}
+.escudo.lg{width:48px;height:48px}
+.escudo.sm{width:28px;height:28px}
+
+/* ── LAYOUT ── */
+.wrap{max-width:1000px;margin:0 auto;padding:0 16px 100px}
+
+/* ── TELA DE ENTRADA ── */
+#screen-entrada{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+.logo-hexa{font-family:var(--display);font-weight:700;font-size:clamp(52px,10vw,96px);line-height:.88;letter-spacing:.02em;text-transform:uppercase;color:var(--yellow);text-shadow:0 0 60px rgba(255,223,0,.2),3px 3px 0 var(--green);margin-bottom:8px}
+.logo-sub{font-family:var(--mono);font-size:11px;letter-spacing:.4em;color:var(--muted);text-transform:uppercase;margin-bottom:40px}
+
+.card-entrada{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:32px;width:100%;max-width:440px}
+.card-entrada h2{font-family:var(--display);font-size:22px;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow);margin-bottom:6px}
+.card-entrada p{color:var(--muted);font-size:13px;margin-bottom:24px;line-height:1.5}
+
+.field{margin-bottom:16px;text-align:left}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.field input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--cream);padding:12px 16px;border-radius:10px;font-size:15px;font-family:var(--sans);outline:none;transition:all .2s;letter-spacing:.04em}
+.field input:focus{border-color:var(--yellow);background:rgba(255,223,0,.05)}
+.field input::placeholder{color:var(--muted)}
+
+.btn-full{width:100%;background:var(--yellow);color:var(--bg);border:none;padding:14px;border-radius:10px;font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:8px}
+.btn-full:hover{background:var(--yellow2);transform:translateY(-1px)}
+.btn-full:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-ghost-sm{background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px 14px;border-radius:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;width:100%;margin-top:8px;transition:all .2s}
+.btn-ghost-sm:hover{border-color:var(--yellow);color:var(--yellow)}
+
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.1em}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
+
+/* ── APP (tela principal) ── */
+#screen-app{display:none}
+.hero{text-align:center;padding:36px 0 24px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.hero .sala-badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--yellow);padding:4px 14px;border:1px solid rgba(255,223,0,.3);border-radius:999px;background:rgba(255,223,0,.07);text-transform:uppercase;margin-bottom:12px}
+.hero h1{font-family:var(--display);font-weight:700;font-size:clamp(44px,8vw,86px);line-height:.9;letter-spacing:.02em;text-transform:uppercase;color:var(--yellow);text-shadow:3px 3px 0 var(--green)}
+.hero h1 .sub{display:block;color:var(--cream);font-size:.42em;letter-spacing:.14em;margin-top:8px;text-shadow:none}
+.hero .user-info{margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.12em;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.hero .user-info .nome-tag{color:var(--yellow);font-weight:700}
+.btn-sair{background:transparent;border:1px solid rgba(255,107,107,.3);color:var(--red);padding:4px 10px;border-radius:6px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;cursor:pointer;transition:all .2s}
+.btn-sair:hover{background:rgba(255,107,107,.1)}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.tab{background:transparent;border:none;color:var(--muted);font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:11px 20px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;transition:all .2s}
+.tab:hover{color:var(--cream)}
+.tab.active{color:var(--yellow);border-bottom-color:var(--yellow)}
+.tab.admin-tab{color:rgba(255,196,0,.6)}
+.tab.admin-tab.active{color:var(--yellow)}
+
+/* ── STATS ── */
+.player-stats{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:14px}
+.stat-item .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.stat-item .val{font-family:var(--display);font-weight:700;font-size:32px;line-height:1;color:var(--yellow)}
+.stat-item .val.green{color:#5BFF8A}
+.stat-item .val.danger{color:var(--red)}
+.stat-item .val.dim{color:var(--muted)}
+
+/* ── DIA HEADER ── */
+.dia-header{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px dashed var(--border2);margin-bottom:0}
+.dia-header h2{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:.12em;text-transform:uppercase;color:var(--yellow);display:flex;align-items:center;gap:10px}
+.dia-header h2::before{content:"★";font-size:13px;opacity:.5}
+.dia-header .cnt{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em}
+
+/* ── JOGO ── */
+.jogo{padding:14px 4px;border-bottom:1px dashed var(--border2);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0;transition:background .15s;position:relative}
+.jogo:hover{background:rgba(255,223,0,.03)}
+.jogo.exato{background:rgba(0,156,59,.08)}
+.jogo.parcial{background:rgba(255,223,0,.04)}
+.jogo.bloqueado .nome,.jogo.bloqueado .escudo{opacity:.5}
+
+.time{display:flex;align-items:center;gap:10px}
+.time.dir{flex-direction:row-reverse}
+.time .nome{font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.03em;text-transform:uppercase;color:var(--cream)}
+
+.placar-wrap{display:flex;flex-direction:column;align-items:center;gap:5px;padding:0 18px}
+.placar{display:flex;align-items:center;gap:4px;background:rgba(255,223,0,.08);border:1px solid var(--border);border-radius:12px;padding:4px 10px}
+.placar input{width:44px;height:46px;background:transparent;border:none;text-align:center;font-family:var(--display);font-weight:700;font-size:24px;color:var(--yellow);outline:none;-moz-appearance:textfield}
+.placar input::-webkit-outer-spin-button,.placar input::-webkit-inner-spin-button{-webkit-appearance:none}
+.placar input::placeholder{color:rgba(255,223,0,.2)}
+.placar input:focus{color:#fff}
+.placar .sep{color:rgba(255,223,0,.3);font-family:var(--display);font-weight:700;font-size:18px}
+.placar.locked{background:rgba(255,255,255,.02);border-color:rgba(255,255,255,.06);cursor:not-allowed}
+.placar.locked input{color:rgba(255,223,0,.25);pointer-events:none}
+
+/* placar ao vivo do admin (verde pulsante) */
+.placar-live{display:flex;align-items:center;gap:4px;background:rgba(0,156,59,.15);border:1px solid rgba(0,156,59,.4);border-radius:12px;padding:6px 12px}
+.placar-live .gol{font-family:var(--display);font-weight:700;font-size:28px;color:#5BFF8A;min-width:28px;text-align:center;line-height:1}
+.placar-live .sep{color:rgba(91,255,138,.3);font-family:var(--display);font-weight:700;font-size:18px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#5BFF8A;animation:pulse 1.5s infinite;margin-left:4px;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+.jogo-meta{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);text-align:center;text-transform:uppercase}
+
+.result-tag{display:inline-block;font-family:var(--mono);font-size:9px;font-weight:700;padding:4px 10px;border-radius:6px;letter-spacing:.08em;text-transform:uppercase;text-align:center}
+.result-tag.exact{background:var(--green);color:var(--yellow)}
+.result-tag.partial{background:var(--yellow);color:var(--bg)}
+.result-tag.miss{background:rgba(255,107,107,.15);color:var(--red);border:1px solid rgba(255,107,107,.3)}
+.result-tag.pending{background:rgba(255,255,255,.06);color:var(--muted)}
+.result-tag.locked{background:rgba(255,255,255,.04);color:rgba(255,248,220,.3);border:1px dashed rgba(255,255,255,.12)}
+.result-tag.oculto{background:rgba(255,223,0,.06);color:rgba(255,223,0,.4);border:1px dashed var(--border)}
+
+/* ── ADMIN PANEL ── */
+.admin-header{background:rgba(255,223,0,.06);border:1px solid var(--border);border-radius:14px;padding:16px 22px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.admin-header h2{font-family:var(--display);font-size:22px;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
+.admin-header p{color:var(--muted);font-size:12px;margin-top:3px}
+.admin-counter{font-family:var(--display);font-weight:700;font-size:38px;color:var(--yellow);line-height:1;text-align:right}
+.admin-counter small{display:block;font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:.1em;margin-top:3px}
+
+/* admin jogo - inputs de gol */
+.admin-jogo{padding:14px 4px;border-bottom:1px dashed var(--border2);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0}
+.admin-placar{display:flex;align-items:center;gap:6px;padding:0 18px}
+.admin-placar .btn-gol{width:38px;height:38px;border-radius:8px;border:none;font-family:var(--display);font-weight:700;font-size:20px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.btn-gol.plus{background:rgba(0,156,59,.2);color:#5BFF8A;border:1px solid rgba(0,156,59,.4)}
+.btn-gol.plus:hover{background:rgba(0,156,59,.4)}
+.btn-gol.minus{background:rgba(255,107,107,.1);color:var(--red);border:1px solid rgba(255,107,107,.3)}
+.btn-gol.minus:hover{background:rgba(255,107,107,.2)}
+.admin-placar .score{font-family:var(--display);font-weight:700;font-size:32px;color:var(--yellow);min-width:30px;text-align:center;line-height:1}
+.admin-placar .sep{color:rgba(255,223,0,.3);font-family:var(--display);font-size:18px;font-weight:700}
+.admin-placar .vs-sep{color:var(--muted);font-family:var(--display);font-size:14px;padding:0 6px}
+
+/* ── RANKING ── */
+.ranking-table{background:var(--bg);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.rank-row{display:grid;grid-template-columns:56px 1fr 80px 80px 90px;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border2);transition:background .15s}
+.rank-row:last-child{border-bottom:none}
+.rank-row:hover:not(.header){background:rgba(255,223,0,.04)}
+.rank-row.header{background:rgba(255,223,0,.06);font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.rank-pos{font-family:var(--display);font-weight:700;font-size:32px;line-height:1;text-align:center;color:var(--muted)}
+.rank-pos.p1{color:var(--yellow);text-shadow:0 0 20px rgba(255,223,0,.4)}
+.rank-pos.p2{color:#c0c0c0}
+.rank-pos.p3{color:#cd7f32}
+.rank-name{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream)}
+.rank-name small{display:block;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:400;letter-spacing:.08em;margin-top:2px;text-transform:none}
+.rank-pts{font-family:var(--display);font-weight:700;color:var(--cream);text-align:center}
+.rank-pts .v{font-size:24px;display:block;line-height:1}
+.rank-pts .l{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.rank-pts.total .v{font-size:28px;color:var(--yellow)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--yellow);color:var(--bg);padding:12px 22px;border-radius:999px;font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.06em;z-index:999;transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 12px 40px rgba(0,0,0,.4);text-transform:uppercase}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.erro{background:var(--red);color:#fff}
+
+/* ── LOADING ── */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:14px;color:var(--muted)}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--yellow);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── LIVE INDICATOR ── */
+.live-bar{background:rgba(0,156,59,.1);border:1px solid rgba(0,156,59,.25);border-radius:8px;padding:6px 14px;display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:#5BFF8A;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty .ico{font-size:44px;margin-bottom:12px}
+.empty h3{font-family:var(--display);font-size:26px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream);margin-bottom:8px}
+.empty p{font-size:13px;max-width:380px;margin:0 auto;line-height:1.6}
+
+footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+footer span{color:var(--yellow)}
+
+@media(max-width:640px){
+  .jogo,.admin-jogo{grid-template-columns:1fr;gap:10px;text-align:center}
+  .time,.time.dir{justify-content:center}
+  .placar-wrap,.admin-placar{padding:0;justify-content:center}
+  .rank-row{grid-template-columns:44px 1fr 80px}
+  .rank-row .col-hide{display:none}
+  .time .nome{font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ TELA DE ENTRADA ══════════ -->
+<div id="screen-entrada">
+  <div class="logo-hexa">Rumo ao<br>Hexa</div>
+  <div class="logo-sub">Bolão Brasileirão 2026 · Rodada 16</div>
+
+  <!-- ENTRAR NA SALA -->
+  <div class="card-entrada" id="card-entrar">
+    <h2>Entrar no Bolão</h2>
+    <p>Digite o código da sala e seu nome para começar a palpitar.</p>
+    <div class="field"><label>Código da sala</label><input id="inp-codigo" placeholder="Ex: HEXA26" maxlength="10" style="text-transform:uppercase"></div>
+    <div class="field"><label>Seu nome</label><input id="inp-nome" placeholder="Como você quer aparecer" maxlength="20"></div>
+    <button class="btn-full" onclick="entrarNaSala()">Entrar ★</button>
+    <div class="divider">ou</div>
+    <button class="btn-ghost-sm" onclick="mostrarCriarSala()">Criar nova sala (Admin)</button>
+  </div>
+
+  <!-- CRIAR SALA (admin) -->
+  <div class="card-entrada" id="card-criar" style="display:none">
+    <h2>Criar Sala</h2>
+    <p>Você será o admin — só você lança os placares ao vivo.</p>
+    <div class="field"><label>Nome do bolão</label><input id="inp-sala-nome" placeholder="Ex: Bolão da Firma" maxlength="30"></div>
+    <div class="field"><label>Código da sala</label><input id="inp-sala-codigo" placeholder="Ex: HEXA26" maxlength="10" style="text-transform:uppercase"></div>
+    <div class="field"><label>Senha admin</label><input id="inp-sala-senha" type="password" placeholder="Só você vai saber"></div>
+    <div class="field"><label>Seu nome</label><input id="inp-admin-nome" placeholder="Seu nome" maxlength="20"></div>
+    <button class="btn-full" onclick="criarSala()">Criar Sala ★</button>
+    <button class="btn-ghost-sm" onclick="mostrarEntrar()">← Voltar</button>
+  </div>
+</div>
+
+<!-- ══════════ APP PRINCIPAL ══════════ -->
+<div id="screen-app">
+  <div class="wrap">
+    <header class="hero">
+      <div class="sala-badge" id="hero-sala-badge">SALA: —</div>
+      <h1>Rumo ao Hexa<span class="sub">Brasileirão 2026 · Rodada 16</span></h1>
+      <div class="user-info">
+        <span>Jogando como <span class="nome-tag" id="hero-nome">—</span></span>
+        <button class="btn-sair" onclick="sair()">Sair</button>
+      </div>
+    </header>
+
+    <div class="tabs" id="tabs-bar">
+      <button class="tab active" data-tab="palpites" onclick="switchTab('palpites')">★ Palpites</button>
+      <button class="tab" data-tab="ranking" onclick="switchTab('ranking')">🏆 Ranking</button>
+    </div>
+
+    <div id="tab-palpites"></div>
+    <div id="tab-ranking" style="display:none"></div>
+    <div id="tab-admin" style="display:none"></div>
+
+    <footer>feito com <span>★</span> · rumo ao hexa · brasileirão 2026</footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════ SUPABASE ══════════
+const SUPA_URL = "https://rdmuolchtkwozrsgieoe.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkbXVvbGNodGt3b3pyc2dpZW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTAzODgsImV4cCI6MjA5NDUyNjM4OH0.KjjVMLC4D4pkMdHMZYWBjGwCVY58Q1bwhllzHbqNuzE";
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ══════════ ESCUDOS ══════════
+const ESCUDOS = {
+  "Internacional":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyNERDAwMDAnLz48cG9seWdvbiBwb2ludHM9JzIwLDYgMjMsMTYgMzQsMTYgMjUsMjMgMjgsMzMgMjAsMjcgMTIsMzMgMTUsMjMgNiwxNiAxNywxNicgZmlsbD0nd2hpdGUnLz48L3N2Zz4=",
+  "Vasco":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9J3doaXRlJyBzdHJva2U9JyMwMDAnIHN0cm9rZS13aWR0aD0nMicvPjxwYXRoIGQ9J004IDggTDIwIDMyIEwzMiA4IFonIGZpbGw9J25vbmUnIHN0cm9rZT0nYmxhY2snIHN0cm9rZS13aWR0aD0nMycvPjxsaW5lIHgxPSc4JyB5MT0nMjAnIHgyPSczMicgeTI9JzIwJyBzdHJva2U9J2JsYWNrJyBzdHJva2Utd2lkdGg9JzMnLz48L3N2Zz4=",
+  "Atlético-MG":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDAnLz48Y2lyY2xlIGN4PScyMCcgY3k9JzIwJyByPScxNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPScyJy8+PHRleHQgeD0nMjAnIHk9JzI2JyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZScgZm9udC1zaXplPScxNCcgZm9udC13ZWlnaHQ9J2JvbGQnIGZvbnQtZmFtaWx5PSdzYW5zLXNlcmlmJz5HPC90ZXh0PjwvaW50ZXJuYWw+PC9zdmc+",
+  "Mirassol":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyNGRkQ3MDAnLz48Y2lyY2xlIGN4PScyMCcgY3k9JzIwJyByPScxNCcgZmlsbD0nbm9uZScgc3Ryb2tlPScjMDAwMDgwJyBzdHJva2Utd2lkdGg9JzMnLz48dGV4dCB4PScyMCcgeT0nMjUnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZpbGw9JyMwMDAwODAnIGZvbnQtc2l6ZT0nMTAnIGZvbnQtd2VpZ2h0PSdib2xkJyBmb250LWZhbWlseT0nc2Fucy1zZXJpZic+TUZDPC90ZXh0PjwvaW50ZXJuYWw+PC9zdmc+",
+  "Fluminense":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyM2QjJEOEInLz48cmVjdCB4PScxMycgeT0nMTAnIHdpZHRoPSc1JyBoZWlnaHQ9JzIwJyBmaWxsPScjQ0MwMDAwJy8+PHJlY3QgeD0nMjInIHk9JzEwJyB3aWR0aD0nNScgaGVpZ2h0PScyMCcgZmlsbD0nd2hpdGUnLz48L3N2Zz4=",
+  "São Paulo":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9J3doaXRlJyBzdHJva2U9JyNjY2MnIHN0cm9rZS13aWR0aD0nMC41Jy8+PHJlY3QgeD0nNCcgeT0nMTQnIHdpZHRoPSczMicgaGVpZ2h0PSc0JyBmaWxsPScjREQwMDAwJy8+PHJlY3QgeD0nNCcgeT0nMjInIHdpZHRoPSczMicgaGVpZ2h0PSc0JyBmaWxsPScjMDAwJy8+PC9zdmc+",
+  "Palmeiras":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDY0MDAnLz48Y2lyY2xlIGN4PScyMCcgY3k9JzIwJyByPScxMycgZmlsbD0nbm9uZScgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPScyJy8+PHRleHQgeD0nMjAnIHk9JzI0JyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZScgZm9udC1zaXplPSc4JyBmb250LXdlaWdodD0nYm9sZCcgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnPlNFUDwvdGV4dD48L3N2Zz4=",
+  "Cruzeiro":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDMwODcnLz48Y2lyY2xlIGN4PScyMCcgY3k9JzE0JyByPSczJyBmaWxsPSd3aGl0ZScvPjxjaXJjbGUgY3g9JzI4JyBjeT0nMjAnIHI9JzMnIGZpbGw9J3doaXRlJy8+PGNpcmNsZSBjeD0nMjQnIGN5PScyOCcgcj0nMycgZmlsbD0nd2hpdGUnLz48Y2lyY2xlIGN4PScxNicgY3k9JzI4JyByPSczJyBmaWxsPSd3aGl0ZScvPjxjaXJjbGUgY3g9JzEyJyBjeT0nMjAnIHI9JzMnIGZpbGw9J3doaXRlJy8+PC9zdmc+",
+  "Santos":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9J3doaXRlJyBzdHJva2U9JyNjY2MnIHN0cm9rZS13aWR0aD0nMC41Jy8+PHBhdGggZD0nTTIwIDQgTDM2IDIwIEwyMCAzNiBMNCAyMCBaJyBmaWxsPSdibGFjaycvPjxwYXRoIGQ9J00yMCAxMCBMMzAgMjAgTDIwIDMwIEwxMCAyMCBaJyBmaWxsPSd3aGl0ZScvPjwvc3ZnPg==",
+  "Coritiba":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9J3doaXRlJy8+PHBhdGggZD0nTTIwIDQgTDM2IDE0IEwzNiAyNiBMMjAgMzYgTDQgMjYgTDQgMTQgWicgZmlsbD0nIzAwNjQwMCcvPjxwYXRoIGQ9J00yMCAxMCBMMzAgMTYgTDMwIDI0IEwyMCAzMCBMMTAgMjQgTDEwIDE2IFonIGZpbGw9J3doaXRlJy8+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nNScgZmlsbD0nIzAwNjQwMCcvPjwvc3ZnPg==",
+  "Bahia":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDMwODcnLz48cGF0aCBkPSdNNCAyMCBMMjAgNCBMMzYgMjAgTDIwIDM2IFonIGZpbGw9JyNDQzAwMDAnLz48cGF0aCBkPSdNMTAgMjAgTDIwIDEwIEwzMCAyMCBMMjAgMzAgWicgZmlsbD0nd2hpdGUnLz48L3N2Zz4=",
+  "Grêmio":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDMwODcnLz48cmVjdCB4PSc0JyB5PScxNScgd2lkdGg9JzMyJyBoZWlnaHQ9JzEwJyBmaWxsPScjODdDRUVCJy8+PHJlY3QgeD0nNCcgeT0nMTUnIHdpZHRoPSczMicgaGVpZ2h0PScyJyBmaWxsPSdibGFjaycvPjxyZWN0IHg9JzQnIHk9JzIzJyB3aWR0aD0nMzInIGhlaWdodD0nMicgZmlsbD0nYmxhY2snLz48L3N2Zz4=",
+  "Botafogo":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9J2JsYWNrJy8+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMTMnIGZpbGw9J25vbmUnIHN0cm9rZT0nd2hpdGUnIHN0cm9rZS13aWR0aD0nMicvPjxsaW5lIHgxPScyMCcgeTE9JzcnIHgyPScyMCcgeTI9JzMzJyBzdHJva2U9J3doaXRlJyBzdHJva2Utd2lkdGg9JzInLz48bGluZSB4MT0nNycgeTE9JzIwJyB4Mj0nMzMnIHkyPScyMCcgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPScyJy8+PC9zdmc+",
+  "Corinthians":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9J3doaXRlJyBzdHJva2U9JyNjY2MnIHN0cm9rZS13aWR0aD0nMC41Jy8+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMTUnIGZpbGw9J2JsYWNrJy8+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMTAnIGZpbGw9J3doaXRlJy8+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nNScgZmlsbD0nYmxhY2snLz48L3N2Zz4=",
+  "Chapecoense":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDY0MDAnLz48cmVjdCB4PSc4JyB5PScxNycgd2lkdGg9JzI0JyBoZWlnaHQ9JzYnIGZpbGw9J3doaXRlJy8+PHJlY3QgeD0nMTcnIHk9JzgnIHdpZHRoPSc2JyBoZWlnaHQ9JzI0JyBmaWxsPSd3aGl0ZScvPjwvc3ZnPg==",
+  "Remo":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyMwMDMwODcnLz48bGluZSB4MT0nOCcgeTE9JzIwJyB4Mj0nMzInIHkyPScyMCcgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPScyJy8+PHRleHQgeD0nMjAnIHk9JzI0JyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZScgZm9udC1zaXplPSc4JyBmb250LXdlaWdodD0nYm9sZCcgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnPkNSRTwvdGV4dD48L3N2Zz4=",
+  "Red Bull Bragantino":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyNDQzAwMDAnLz48Y2lyY2xlIGN4PScyMCcgY3k9JzIwJyByPScxMycgZmlsbD0nd2hpdGUnLz48Y2lyY2xlIGN4PScyMCcgY3k9JzIwJyByPSc4JyBmaWxsPScjQ0MwMDAwJy8+PHRleHQgeD0nMjAnIHk9JzIzJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZScgZm9udC1zaXplPSc2JyBmb250LXdlaWdodD0nYm9sZCcgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnPlJCQjwvdGV4dD48L3N2Zz4=",
+  "Vitória":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyNDQzAwMDAnLz48cGF0aCBkPSdNOCA4IEwyMCAzMiBMMzIgOCcgZmlsbD0nbm9uZScgc3Ryb2tlPSdibGFjaycgc3Ryb2tlLXdpZHRoPSc0Jy8+PC9zdmc+",
+  "Athletico-PR":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyNDQzAwMDAnLz48cGF0aCBkPSdNMjAgNCBMMzYgMzYgTDQgMzYgWicgZmlsbD0nYmxhY2snLz48dGV4dCB4PScyMCcgeT0nMzAnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZpbGw9J3doaXRlJyBmb250LXNpemU9JzgnIGZvbnQtd2VpZ2h0PSdib2xkJyBmb250LWZhbWlseT0nc2Fucy1zZXJpZic+Q0FQPC90ZXh0PjwvaW50ZXJuYWw+PC9zdmc+",
+  "Flamengo":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCA0MCc+PGNpcmNsZSBjeD0nMjAnIGN5PScyMCcgcj0nMjAnIGZpbGw9JyNDQzAwMDAnLz48cmVjdCB4PSc0JyB5PScxNScgd2lkdGg9JzMyJyBoZWlnaHQ9JzEwJyBmaWxsPSdibGFjaycvPjxsaW5lIHgxPSc0JyB5MT0nMTUnIHgyPSczNicgeTI9JzI1JyBzdHJva2U9JyNDQzAwMDAnIHN0cm9rZS13aWR0aD0nMicvPjxsaW5lIHgxPSc0JyB5MT0nMjUnIHgyPSczNicgeTI9JzE1JyBzdHJva2U9JyNDQzAwMDAnIHN0cm9rZS13aWR0aD0nMicvPjwvc3ZnPg==",
+};
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function escudo(clube,size){
+  size=size||"md";
+  const url=ESCUDOS[clube];
+  if(url) return`<span class="escudo ${size}"><img src="${url}" alt="${clube}"></span>`;
+  return`<span class="escudo ${size}" style="font-size:16px">⚽</span>`;
+}
+
+// ══════════ JOGOS ══════════
+const MATCHES = [
+  {id:1, dia:"Sábado · 16 de maio", date:"16 mai", time:"18h30", venue:"Beira-Rio · Porto Alegre",      a:"Internacional",       b:"Vasco"},
+  {id:2, dia:"Sábado · 16 de maio", date:"16 mai", time:"18h30", venue:"Arena MRV · Belo Horizonte",    a:"Atlético-MG",         b:"Mirassol"},
+  {id:3, dia:"Sábado · 16 de maio", date:"16 mai", time:"19h00", venue:"Maracanã · Rio de Janeiro",     a:"Fluminense",          b:"São Paulo"},
+  {id:4, dia:"Sábado · 16 de maio", date:"16 mai", time:"21h00", venue:"Arena Barueri",                 a:"Palmeiras",           b:"Cruzeiro"},
+  {id:5, dia:"Domingo · 17 de maio", date:"17 mai", time:"11h00", venue:"Vila Belmiro · Santos",        a:"Santos",              b:"Coritiba"},
+  {id:6, dia:"Domingo · 17 de maio", date:"17 mai", time:"16h00", venue:"Arena Fonte Nova · Salvador",  a:"Bahia",               b:"Grêmio"},
+  {id:7, dia:"Domingo · 17 de maio", date:"17 mai", time:"16h00", venue:"Nilton Santos · Rio",          a:"Botafogo",            b:"Corinthians"},
+  {id:8, dia:"Domingo · 17 de maio", date:"17 mai", time:"18h30", venue:"Arena Condá · Chapecó",        a:"Chapecoense",         b:"Remo"},
+  {id:9, dia:"Domingo · 17 de maio", date:"17 mai", time:"18h30", venue:"Est. Cícero S. Marques",       a:"Red Bull Bragantino", b:"Vitória"},
+  {id:10,dia:"Domingo · 17 de maio", date:"17 mai", time:"19h30", venue:"Arena da Baixada · Curitiba",  a:"Athletico-PR",        b:"Flamengo"},
+];
+
+const MATCH_TIMES = {
+  1:"2026-05-16T18:30",2:"2026-05-16T18:30",3:"2026-05-16T19:00",4:"2026-05-16T21:00",
+  5:"2026-05-17T11:00",6:"2026-05-17T16:00",7:"2026-05-17T16:00",8:"2026-05-17T18:30",
+  9:"2026-05-17T18:30",10:"2026-05-17T19:30",
+};
+function kickoffUTC(id){
+  const s=MATCH_TIMES[id];if(!s)return Infinity;
+  const[date,time]=s.split('T');const[y,mo,d]=date.split('-').map(Number);const[h,mi]=time.split(':').map(Number);
+  return Date.UTC(y,mo-1,d,h+3,mi);
+}
+function isLocked(id){return Date.now()>=kickoffUTC(id)-5*60*1000}
+function lockLabel(id){
+  const diff=kickoffUTC(id)-Date.now();
+  if(diff<=0)return'🔒 Jogo iniciado';
+  const mins=Math.ceil(diff/60000);
+  return mins<=5?`🔒 Travado (${mins}min)`:'🔒 Travado';
+}
+
+// ══════════ STATE ══════════
+let session={sala:null,jogador:null,isAdmin:false};
+let placares={};   // {matchId: {gol_a, gol_b}}
+let palpitesCache={};  // {jogadorId: {matchId: {gol_a,gol_b}}}
+let jogadoresCache=[];
+let realtimeSubs=[];
+
+// ══════════ TOAST ══════════
+function toast(msg,erro){
+  const el=document.getElementById("toast");
+  el.textContent=msg;el.className='toast'+(erro?' erro':'');
+  el.classList.add("show");
+  clearTimeout(window._tt);window._tt=setTimeout(()=>el.classList.remove("show"),2800);
+}
+
+// ══════════ NAVEGAÇÃO ══════════
+function mostrarCriarSala(){document.getElementById("card-entrar").style.display="none";document.getElementById("card-criar").style.display="block"}
+function mostrarEntrar(){document.getElementById("card-criar").style.display="none";document.getElementById("card-entrar").style.display="block"}
+
+function switchTab(tab){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===tab));
+  ["palpites","ranking","admin"].forEach(id=>{
+    const el=document.getElementById("tab-"+id);
+    if(el)el.style.display=(id===tab?"block":"none");
+  });
+  if(tab==="palpites")renderPalpites();
+  else if(tab==="ranking")renderRanking();
+  else if(tab==="admin")renderAdmin();
+}
+
+function sair(){
+  // Cancela subscriptions realtime
+  realtimeSubs.forEach(s=>sb.removeChannel(s));
+  realtimeSubs=[];
+  session={sala:null,jogador:null,isAdmin:false};
+  placares={};palpitesCache={};jogadoresCache=[];
+  document.getElementById("screen-app").style.display="none";
+  document.getElementById("screen-entrada").style.display="flex";
+}
+
+// ══════════ CRIAR SALA ══════════
+async function criarSala(){
+  const nome=document.getElementById("inp-sala-nome").value.trim();
+  const codigo=document.getElementById("inp-sala-codigo").value.trim().toUpperCase();
+  const senha=document.getElementById("inp-sala-senha").value.trim();
+  const adminNome=document.getElementById("inp-admin-nome").value.trim();
+  if(!nome||!codigo||!senha||!adminNome){toast("Preencha todos os campos",true);return}
+
+  const btn=document.querySelector("#card-criar .btn-full");
+  btn.disabled=true;btn.textContent="Criando...";
+
+  try{
+    // Cria sala
+    const{error:eSala}=await sb.from("salas").insert({codigo,nome,senha_admin:senha});
+    if(eSala){
+      if(eSala.code==="23505")toast("Código já existe! Tente outro.",true);
+      else toast("Erro ao criar sala: "+eSala.message,true);
+      btn.disabled=false;btn.textContent="Criar Sala ★";return;
+    }
+    // Cria jogador admin
+    const{data:jData,error:eJ}=await sb.from("jogadores").insert({sala_codigo:codigo,nome:adminNome}).select().single();
+    if(eJ){toast("Erro ao criar jogador: "+eJ.message,true);btn.disabled=false;btn.textContent="Criar Sala ★";return}
+
+    session={sala:{codigo,nome},jogador:jData,isAdmin:true};
+    await iniciarApp();
+    toast("Sala criada! Compartilhe o código: "+codigo);
+  }catch(e){toast("Erro inesperado",true);btn.disabled=false;btn.textContent="Criar Sala ★"}
+}
+
+// ══════════ ENTRAR NA SALA ══════════
+async function entrarNaSala(){
+  const codigo=document.getElementById("inp-codigo").value.trim().toUpperCase();
+  const nome=document.getElementById("inp-nome").value.trim();
+  if(!codigo||!nome){toast("Preencha código e nome",true);return}
+
+  const btn=document.querySelector("#card-entrar .btn-full");
+  btn.disabled=true;btn.textContent="Entrando...";
+
+  try{
+    // Busca sala
+    const{data:sala,error:eSala}=await sb.from("salas").select("*").eq("codigo",codigo).single();
+    if(eSala||!sala){toast("Sala não encontrada",true);btn.disabled=false;btn.textContent="Entrar ★";return}
+
+    // Cria jogador (ou busca existente pelo nome na sala)
+    let jogador;
+    const{data:existing}=await sb.from("jogadores").select("*").eq("sala_codigo",codigo).eq("nome",nome).maybeSingle();
+    if(existing){
+      jogador=existing;
+    } else {
+      const{data:jData,error:eJ}=await sb.from("jogadores").insert({sala_codigo:codigo,nome}).select().single();
+      if(eJ){toast("Erro ao entrar: "+eJ.message,true);btn.disabled=false;btn.textContent="Entrar ★";return}
+      jogador=jData;
+    }
+
+    session={sala,jogador,isAdmin:false};
+    await iniciarApp();
+  }catch(e){toast("Erro inesperado",true);btn.disabled=false;btn.textContent="Entrar ★"}
+}
+
+// ══════════ INICIAR APP ══════════
+async function iniciarApp(){
+  // Atualiza hero
+  document.getElementById("hero-sala-badge").textContent="SALA: "+session.sala.codigo+" · "+session.sala.nome;
+  document.getElementById("hero-nome").textContent=session.jogador.nome;
+
+  // Adiciona aba admin se for admin
+  if(session.isAdmin){
+    const tabs=document.getElementById("tabs-bar");
+    if(!tabs.querySelector('[data-tab="admin"]')){
+      const t=document.createElement("button");
+      t.className="tab admin-tab";t.dataset.tab="admin";
+      t.onclick=()=>switchTab("admin");t.textContent="⚙ Admin";
+      tabs.appendChild(t);
+    }
+  }
+
+  // Mostra app
+  document.getElementById("screen-entrada").style.display="none";
+  document.getElementById("screen-app").style.display="block";
+
+  // Carrega dados iniciais
+  await Promise.all([carregarPlacares(),carregarPalpites(),carregarJogadores()]);
+
+  // Subscribe realtime
+  assinarRealtime();
+
+  // Renderiza
+  renderPalpites();
+
+  // Re-renderiza a cada 30s para travas
+  setInterval(()=>renderPalpites(),30000);
+}
+
+// ══════════ CARREGAR DADOS ══════════
+async function carregarPlacares(){
+  const{data}=await sb.from("placares").select("*").eq("sala_codigo",session.sala.codigo);
+  placares={};
+  (data||[]).forEach(p=>{placares[p.match_id]={gol_a:p.gol_a,gol_b:p.gol_b}});
+}
+async function carregarPalpites(){
+  const{data}=await sb.from("palpites").select("*").eq("sala_codigo",session.sala.codigo);
+  palpitesCache={};
+  (data||[]).forEach(p=>{
+    if(!palpitesCache[p.jogador_id])palpitesCache[p.jogador_id]={};
+    palpitesCache[p.jogador_id][p.match_id]={gol_a:p.gol_a,gol_b:p.gol_b};
+  });
+}
+async function carregarJogadores(){
+  const{data}=await sb.from("jogadores").select("*").eq("sala_codigo",session.sala.codigo);
+  jogadoresCache=data||[];
+}
+
+// ══════════ REALTIME ══════════
+function assinarRealtime(){
+  // Placares ao vivo
+  const chPlacares=sb.channel("placares-"+session.sala.codigo)
+    .on("postgres_changes",{event:"*",schema:"public",table:"placares",filter:"sala_codigo=eq."+session.sala.codigo},
+      payload=>{
+        const p=payload.new;
+        if(p)placares[p.match_id]={gol_a:p.gol_a,gol_b:p.gol_b};
+        else if(payload.old)delete placares[payload.old.match_id];
+        renderPalpites();
+        if(document.querySelector('[data-tab="ranking"]')?.classList.contains("active"))renderRanking();
+        if(session.isAdmin)renderAdmin();
+      })
+    .subscribe();
+  realtimeSubs.push(chPlacares);
+
+  // Palpites ao vivo
+  const chPalpites=sb.channel("palpites-"+session.sala.codigo)
+    .on("postgres_changes",{event:"*",schema:"public",table:"palpites",filter:"sala_codigo=eq."+session.sala.codigo},
+      async payload=>{
+        await carregarPalpites();
+        if(document.querySelector('[data-tab="ranking"]')?.classList.contains("active"))renderRanking();
+      })
+    .subscribe();
+  realtimeSubs.push(chPalpites);
+
+  // Novos jogadores
+  const chJogadores=sb.channel("jogadores-"+session.sala.codigo)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"jogadores",filter:"sala_codigo=eq."+session.sala.codigo},
+      async ()=>{await carregarJogadores();renderRanking()})
+    .subscribe();
+  realtimeSubs.push(chJogadores);
+}
+
+// ══════════ CALC PONTOS ══════════
+function calcPoints(g,a){
+  if(!g||!a||g.gol_a==null||g.gol_b==null||a.gol_a==null||a.gol_b==null)return null;
+  const[ga,gb,aa,ab]=[+g.gol_a,+g.gol_b,+a.gol_a,+a.gol_b];
+  if([ga,gb,aa,ab].some(isNaN))return null;
+  const res=([x,y])=>x>y?"H":x<y?"A":"D";
+  if(ga===aa&&gb===ab)return{pts:5,type:"exact"};
+  if(res([ga,gb])===res([aa,ab]))return{pts:3,type:"partial"};
+  return{pts:0,type:"miss"};
+}
+
+// ══════════ SALVAR PALPITE ══════════
+async function setPalpite(matchId,side,val){
+  if(!session.jogador)return;
+  if(isLocked(matchId)){toast("🔒 Palpite encerrado para este jogo!",true);return}
+  val=val===""?null:Math.max(0,Math.min(20,parseInt(val)||0));
+
+  const jId=session.jogador.id;
+  const atual=palpitesCache[jId]?.[matchId]||{};
+  const novo={...atual,[side]:val};
+
+  // Otimista
+  if(!palpitesCache[jId])palpitesCache[jId]={};
+  palpitesCache[jId][matchId]=novo;
+
+  const{error}=await sb.from("palpites").upsert({
+    jogador_id:jId,sala_codigo:session.sala.codigo,match_id:matchId,
+    gol_a:novo.gol_a??null,gol_b:novo.gol_b??null
+  },{onConflict:"jogador_id,match_id"});
+  if(error)toast("Erro ao salvar palpite",true);
+}
+
+// ══════════ RENDER PALPITES ══════════
+function renderPalpites(){
+  const wrap=document.getElementById("tab-palpites");
+  if(!wrap||wrap.style.display==="none")return;
+  const jId=session.jogador.id;
+  const meusPalpites=palpitesCache[jId]||{};
+
+  let total=0,exatos=0,parciais=0,errados=0,pendentes=0;
+  MATCHES.forEach(m=>{
+    const g=meusPalpites[m.id];const a=placares[m.id];
+    const r=calcPoints(g,a);
+    if(r){total+=r.pts;if(r.type==="exact")exatos++;else if(r.type==="partial")parciais++;else errados++;}
+    else if(g?.gol_a!=null&&g?.gol_b!=null)pendentes++;
+  });
+
+  const dias=[...new Set(MATCHES.map(m=>m.dia))];
+  let html=`<div class="player-stats">
+    <div class="stat-item"><div class="lbl">Pontos</div><div class="val">${total}</div></div>
+    <div class="stat-item"><div class="lbl">Exatos · 5pt</div><div class="val green">${exatos}</div></div>
+    <div class="stat-item"><div class="lbl">Parciais · 3pt</div><div class="val">${parciais}</div></div>
+    <div class="stat-item"><div class="lbl">Errados</div><div class="val danger">${errados}</div></div>
+    <div class="stat-item"><div class="lbl">Pendentes</div><div class="val dim">${pendentes}</div></div>
+  </div>`;
+
+  // Indicador realtime
+  html+=`<div class="live-bar"><span class="live-dot"></span>Placar em tempo real</div>`;
+
+  dias.forEach(dia=>{
+    const matches=MATCHES.filter(m=>m.dia===dia);
+    html+=`<section style="margin-bottom:28px"><div class="dia-header"><h2>${dia}</h2><span class="cnt">${matches.length} jogos</span></div>`;
+    matches.forEach(m=>{
+      const locked=isLocked(m.id);
+      const g=meusPalpites[m.id];
+      const a=placares[m.id]; // placar real ao vivo
+      const r=calcPoints(g,a);
+      let tag="",cls="";
+
+      if(r){
+        cls=r.type==="exact"?"exato":r.type==="partial"?"parcial":"";
+        const lbl=r.type==="exact"?"✓ Exato · +5pt":r.type==="partial"?"◐ Parcial · +3pt":"✗ Errou · 0pt";
+        const tc=r.type==="exact"?"exact":r.type==="partial"?"partial":"miss";
+        tag=`<span class="result-tag ${tc}">${lbl}</span>`;
+      } else if(locked){
+        tag=`<span class="result-tag locked">${lockLabel(m.id)}</span>`;
+      } else if(g?.gol_a!=null&&g?.gol_b!=null){
+        tag=`<span class="result-tag pending">⏱ aguardando</span>`;
+      }
+
+      let placarHtml;
+      if(a!=null){
+        // Jogo em andamento/encerrado — mostra placar ao vivo
+        placarHtml=`<div class="placar-live">
+          <span class="gol">${a.gol_a}</span>
+          <span class="sep">×</span>
+          <span class="gol">${a.gol_b}</span>
+          <span class="live-dot"></span>
+        </div>`;
+      } else if(locked){
+        const ga=g?.gol_a??'';const gb=g?.gol_b??'';
+        placarHtml=`<div class="placar locked">
+          <input type="number" value="${ga}" placeholder="–" disabled>
+          <span class="sep">×</span>
+          <input type="number" value="${gb}" placeholder="–" disabled>
+        </div>`;
+      } else {
+        const ga=g?.gol_a??'';const gb=g?.gol_b??'';
+        placarHtml=`<div class="placar">
+          <input type="number" min="0" max="20" value="${ga}" inputmode="numeric" placeholder="–"
+            oninput="setPalpite(${m.id},'gol_a',this.value)">
+          <span class="sep">×</span>
+          <input type="number" min="0" max="20" value="${gb}" inputmode="numeric" placeholder="–"
+            oninput="setPalpite(${m.id},'gol_b',this.value)">
+        </div>`;
+      }
+
+      const bloq=locked&&!r?" bloqueado":"";
+      html+=`<div class="jogo ${cls}${bloq}">
+        <div class="time">${escudo(m.a,"lg")}<span class="nome">${esc(m.a)}</span></div>
+        <div class="placar-wrap">
+          ${placarHtml}
+          <div class="jogo-meta">${m.date} · ${m.time} · ${esc(m.venue)}</div>
+          ${tag}
+        </div>
+        <div class="time dir">${escudo(m.b,"lg")}<span class="nome">${esc(m.b)}</span></div>
+      </div>`;
+    });
+    html+=`</section>`;
+  });
+  wrap.innerHTML=html;
+}
+
+// ══════════ RENDER RANKING ══════════
+async function renderRanking(){
+  const wrap=document.getElementById("tab-ranking");
+  if(!wrap)return;
+  await carregarJogadores();await carregarPalpites();
+
+  const rows=jogadoresCache.map(j=>{
+    const pg=palpitesCache[j.id]||{};
+    let total=0,exatos=0,parciais=0,errados=0,palpitados=0;
+    MATCHES.forEach(m=>{
+      const g=pg[m.id];const a=placares[m.id];
+      if(g?.gol_a!=null&&g?.gol_b!=null)palpitados++;
+      const r=calcPoints(g,a);
+      if(r){total+=r.pts;if(r.type==="exact")exatos++;else if(r.type==="partial")parciais++;else errados++;}
+    });
+    return{...j,total,exatos,parciais,errados,palpitados};
+  }).sort((a,b)=>b.total-a.total||b.exatos-a.exatos);
+
+  if(!rows.length){wrap.innerHTML=`<div class="empty"><div class="ico">🏆</div><h3>Sem jogadores</h3><p>Aguardando participantes entrarem na sala.</p></div>`;return}
+
+  let html=`<div class="live-bar" style="margin-bottom:16px"><span class="live-dot"></span>Ranking em tempo real</div>
+  <div class="ranking-table">
+    <div class="rank-row header">
+      <div>Pos</div><div>Jogador</div>
+      <div style="text-align:center">Exatos</div>
+      <div style="text-align:center" class="col-hide">Parciais</div>
+      <div style="text-align:right">Total</div>
+    </div>`;
+
+  rows.forEach((r,i)=>{
+    const pos=i+1;
+    const cls=pos===1?"p1":pos===2?"p2":pos===3?"p3":"";
+    const medal=pos===1?"🥇":pos===2?"🥈":pos===3?"🥉":pos;
+    const meu=r.id===session.jogador.id?" style='background:rgba(255,223,0,.06)'":'';
+    html+=`<div class="rank-row"${meu}>
+      <div class="rank-pos ${cls}">${medal}</div>
+      <div><div class="rank-name">${esc(r.nome)}${r.id===session.jogador.id?" ★":""}</div>
+        <small>${r.palpitados}/10 palpites · ${r.errados} erros</small></div>
+      <div class="rank-pts" style="text-align:center"><span class="v" style="color:#5BFF8A">${r.exatos}</span><span class="l">exatos</span></div>
+      <div class="rank-pts col-hide" style="text-align:center"><span class="v" style="color:var(--yellow)">${r.parciais}</span><span class="l">parciais</span></div>
+      <div class="rank-pts total" style="text-align:right"><span class="v">${r.total}</span><span class="l">pts</span></div>
+    </div>`;
+  });
+  html+=`</div>`;
+  wrap.innerHTML=html;
+}
+
+// ══════════ ADMIN — RENDER ══════════
+function renderAdmin(){
+  const wrap=document.getElementById("tab-admin");
+  if(!wrap||!session.isAdmin)return;
+  let feitos=Object.keys(placares).length;
+
+  const dias=[...new Set(MATCHES.map(m=>m.dia))];
+  let html=`<div class="admin-header">
+    <div><h2>⚙ Painel Admin</h2><p>Atualize os gols em tempo real — a galera vê na hora.</p></div>
+    <div><div class="admin-counter">${feitos}/10<small>jogos lançados</small></div></div>
+  </div>`;
+
+  dias.forEach(dia=>{
+    const matches=MATCHES.filter(m=>m.dia===dia);
+    html+=`<section style="margin-bottom:28px"><div class="dia-header"><h2>${dia}</h2><span class="cnt">${matches.length} jogos</span></div>`;
+    matches.forEach(m=>{
+      const p=placares[m.id];
+      const ga=p?.gol_a??0;const gb=p?.gol_b??0;
+      html+=`<div class="admin-jogo">
+        <div class="time">${escudo(m.a,"lg")}<span class="nome">${esc(m.a)}</span></div>
+        <div class="admin-placar">
+          <button class="btn-gol minus" onclick="adminGol(${m.id},'a',-1)">−</button>
+          <span class="score" id="adm-a-${m.id}">${ga}</span>
+          <button class="btn-gol plus" onclick="adminGol(${m.id},'a',1)">+</button>
+          <span class="vs-sep">×</span>
+          <button class="btn-gol minus" onclick="adminGol(${m.id},'b',-1)">−</button>
+          <span class="score" id="adm-b-${m.id}">${gb}</span>
+          <button class="btn-gol plus" onclick="adminGol(${m.id},'b',1)">+</button>
+        </div>
+        <div class="time dir">${escudo(m.b,"lg")}<span class="nome">${esc(m.b)}</span></div>
+      </div>`;
+    });
+    html+=`</section>`;
+  });
+  wrap.innerHTML=html;
+}
+
+// ══════════ ADMIN — GOL ══════════
+async function adminGol(matchId,side,delta){
+  if(!session.isAdmin)return;
+  const p=placares[matchId]||{gol_a:0,gol_b:0};
+  const novo={...p};
+  const key=side==="a"?"gol_a":"gol_b";
+  novo[key]=Math.max(0,(novo[key]??0)+delta);
+
+  // Otimista
+  placares[matchId]=novo;
+  const elA=document.getElementById("adm-a-"+matchId);
+  const elB=document.getElementById("adm-b-"+matchId);
+  if(elA)elA.textContent=novo.gol_a;
+  if(elB)elB.textContent=novo.gol_b;
+
+  const{error}=await sb.from("placares").upsert({
+    sala_codigo:session.sala.codigo,match_id:matchId,
+    gol_a:novo.gol_a,gol_b:novo.gol_b,updated_at:new Date().toISOString()
+  },{onConflict:"sala_codigo,match_id"});
+  if(error){toast("Erro ao salvar placar",true);return}
+  // Realtime vai disparar e atualizar pra todos
+}
+
+// ══════════ INIT ══════════
+document.getElementById("inp-codigo").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
+document.getElementById("inp-nome").addEventListener("keydown",e=>{if(e.key==="Enter")entrarNaSala()});
+document.getElementById("inp-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
+document.getElementById("inp-sala-codigo").addEventListener("input",e=>{e.target.value=e.target.value.toUpperCase()});
+</script>
+</body>
+</html>

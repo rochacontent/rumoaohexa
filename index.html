@@ -223,8 +223,9 @@ footer span{color:var(--yellow)}
     <p>Você será o admin — só você lança os placares ao vivo.</p>
     <div class="field"><label>Nome do bolão</label><input id="inp-sala-nome" placeholder="Ex: Bolão da Firma" maxlength="30"></div>
     <div class="field"><label>Código da sala</label><input id="inp-sala-codigo" placeholder="Ex: HEXA26" maxlength="10" style="text-transform:uppercase"></div>
-    <div class="field"><label>Senha admin</label><input id="inp-sala-senha" type="password" placeholder="Só você vai saber"></div>
+    <div class="field"><label>Senha da sala (admin)</label><input id="inp-sala-senha" type="password" placeholder="Para acessar o painel admin"></div>
     <div class="field"><label>Seu nome</label><input id="inp-admin-nome" placeholder="Seu nome" maxlength="20"></div>
+    <div class="field"><label>Sua senha pessoal</label><input id="inp-admin-senha-pessoal" type="password" placeholder="Para entrar no bolão"></div>
     <button class="btn-full" onclick="criarSala()">Criar Sala ★</button>
     <button class="btn-ghost-sm" onclick="mostrarEntrar()">← Voltar</button>
   </div>
@@ -392,7 +393,7 @@ function sair(){
   // Volta tab ativa para palpites
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab==="palpites"));
   // Limpa inputs de entrada
-  ["inp-codigo","inp-nome","inp-senha","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome"].forEach(id=>{
+  ["inp-codigo","inp-nome","inp-senha","inp-sala-nome","inp-sala-codigo","inp-sala-senha","inp-admin-nome","inp-admin-senha-pessoal"].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value="";
   });
   mostrarEntrar();
@@ -406,7 +407,9 @@ async function criarSala(){
   const codigo=document.getElementById("inp-sala-codigo").value.trim().toUpperCase();
   const senha=document.getElementById("inp-sala-senha").value.trim();
   const adminNome=document.getElementById("inp-admin-nome").value.trim();
-  if(!nome||!codigo||!senha||!adminNome){toast("Preencha todos os campos",true);return}
+  const adminSenha=document.getElementById("inp-admin-senha-pessoal").value.trim();
+  if(!nome||!codigo||!senha||!adminNome||!adminSenha){toast("Preencha todos os campos",true);return}
+  if(adminSenha.length<3){toast("Sua senha pessoal deve ter no mínimo 3 caracteres",true);return}
 
   const btn=document.querySelector("#card-criar .btn-full");
   btn.disabled=true;btn.textContent="Criando...";
@@ -419,8 +422,8 @@ async function criarSala(){
       else toast("Erro ao criar sala: "+eSala.message,true);
       btn.disabled=false;btn.textContent="Criar Sala ★";return;
     }
-    // Cria jogador admin
-    const{data:jData,error:eJ}=await sb.from("jogadores").insert({sala_codigo:codigo,nome:adminNome}).select().single();
+    // Cria jogador admin com senha pessoal
+    const{data:jData,error:eJ}=await sb.from("jogadores").insert({sala_codigo:codigo,nome:adminNome,senha:adminSenha}).select().single();
     if(eJ){toast("Erro ao criar jogador: "+eJ.message,true);btn.disabled=false;btn.textContent="Criar Sala ★";return}
 
     session={sala:{codigo,nome},jogador:jData,isAdmin:true};
